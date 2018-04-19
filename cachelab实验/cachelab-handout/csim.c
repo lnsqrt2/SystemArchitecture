@@ -36,9 +36,9 @@ typedef unsigned long long int mem_addr_t;
 /* Type: Cache line
    LRU is a counter used to implement LRU replacement policy  */
 typedef struct cache_line {
-    char valid;
-    mem_addr_t tag;
-    unsigned long long int lru;
+    char valid;//有效位
+    mem_addr_t tag;//标识位
+    unsigned long long int lru;//LRU算法位
 } cache_line_t;
 
 typedef cache_line_t* cache_set_t;
@@ -46,19 +46,19 @@ typedef cache_set_t* cache_t;
 
 /* Globals set by command line args */
 int verbosity = 0; /* print trace if set */
-int s = 0; /* set index bits */
-int b = 0; /* block offset bits */
+int s = 0; /* set index bits 组索引*/
+int b = 0; /* block offset bits 块内偏移位*/
 int E = 0; /* associativity */
 char* trace_file = NULL;
 
-/* Derived from command line args */
-int S; /* number of sets */
-int B; /* block size (bytes) */
+/* Derived from command line args 从命令行参数*/
+int S; /* number of sets 组数*/
+int B; /* block size (bytes) 块数*/
 
 /* Counters used to record cache statistics */
 int miss_count = 0;
 int hit_count = 0;
-int eviction_count = 0;
+int eviction_count = 0;//被LRU丢掉的cache
 unsigned long long int lru_counter = 1;
 
 /* The cache we are simulating */
@@ -69,7 +69,7 @@ mem_addr_t set_index_mask;
  * initCache - Allocate memory, write 0's for valid and tag and LRU
  * also computes the set_index_mask
  */
-void initCache()
+void initCache()//Done
 {
     int i,j;
     cache = (cache_set_t*) malloc(sizeof(cache_set_t) * S);
@@ -81,7 +81,6 @@ void initCache()
             cache[i][j].lru = 0;
         }
     }
-
     /* Computes set index mask */
     set_index_mask = (mem_addr_t) (pow(2, s) - 1);
 }
@@ -90,9 +89,13 @@ void initCache()
 /* 
  * freeCache - free allocated memory
  */
-void freeCache()
+void freeCache()//Done
 {
-    int i;
+    int i,j;
+    for (i=0; i<S; i++){
+        free(cache[i]);
+    }
+    free cache;
 }
 
 
@@ -104,14 +107,64 @@ void freeCache()
  */
 void accessData(mem_addr_t addr)
 {
-    int i;
+    int i,j;
     unsigned long long int eviction_lru = ULONG_MAX;
     unsigned int eviction_line = 0;
-    mem_addr_t set_index = (addr >> b) & set_index_mask;
-    mem_addr_t tag = addr >> (s+b);
+    mem_addr_t set_index = (addr >> b) & set_index_mask;//组号
+    mem_addr_t tag = addr >> (s+b);//标识号
 
-    cache_set_t cache_set = cache[set_index];
+    cache_set_t cache_set = cache[set_index];//选定这一组cache
 
+    //判断是否命中
+    int isHit = 0;
+    int isFull = 1;
+    for(i=0;i<E;i++)//遍历组内所有cache
+    {
+        //命中cache
+        if(cache_set[i].tag==tag&&cache_set[i].valid==1)
+        {
+            isHit = 1;
+            hit_count++;
+            cache_set[i].lru = 0;
+            break;
+        }
+    }
+
+    if(isHit != 1) //未命中cache
+    {
+        //判断这组cache是否满了
+        for (i=0;i<E;i++)
+        {
+            if(cache_set[i].valid == 0)//如果存在一个空余
+                isFull = 0;//则不满
+        }
+
+        if(isFull == 0)//如果不满，则直接载入，无需替换
+        {
+            cache_set[i].tag = tag;
+            cache_set[i].valid=1;
+            cache_set[i].lru = 0;//LRU计数清0
+        }
+        else//如果满了则要替换
+        {
+
+        }
+        if(isFull == 1)
+        for (i=0;i<E;i++)
+        {
+            if(cache_set[i].valid==0)
+            {
+                miss_count++;
+                
+                break;
+            }
+        }
+    }
+    for (j=0;j<E;j++)
+    {
+        if(j!=i)
+            (cache_set[j].lru)++;
+    }
 
 }
 
@@ -119,13 +172,20 @@ void accessData(mem_addr_t addr)
 /*
  * replayTrace - replays the given trace file against the cache 
  */
-void replayTrace(char* trace_fn)
+void replayTrace(char* trace_fn)//Done
 {
     char buf[1000];
     mem_addr_t addr=0;
     unsigned int len=0;
     FILE* trace_fp = fopen(trace_fn, "r");
 
+    //行读取文件到buf,addr,len
+    while(fscanf(tracefile," %s %llx,%d",buf,&addr,&len)!EOF)
+    {
+        if(strcmp(buf,"M"))//如果是M，则相当于同时L，S，即2次
+            accessData(addr);
+        accessData(addr);
+    }
 
     fclose(trace_fp);
 }
@@ -190,7 +250,7 @@ int main(int argc, char* argv[])
     }
 
     /* Compute S, E and B from command line args */
-    S = (unsigned int) pow(2, s);
+    S = (unsigned int) pow(2, s);//x的y次幂
     B = (unsigned int) pow(2, b);
  
     /* Initialize cache */
