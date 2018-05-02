@@ -96,11 +96,11 @@ void initCache()
  */
 void freeCache()
 {
-    int i,j;
+    int i;
     for (i=0; i<S; i++){
         free(cache[i]);
     }
-    free cache;
+    free(cache);
 }
 
 
@@ -112,7 +112,7 @@ void freeCache()
  */
 void accessData(mem_addr_t addr)
 {
-    int i,j;
+    int i;
     unsigned long long int eviction_lru = ULONG_MAX;//被替换的cache的lru
     unsigned int eviction_line = 0;//被替换的cache行号
     mem_addr_t set_index = (addr >> b) & set_index_mask;//组号
@@ -191,14 +191,17 @@ void replayTrace(char* trace_fn)//Done
     unsigned int len=0;
     FILE* trace_fp = fopen(trace_fn, "r");
 
-    //行读取文件到buf,addr,len
-    while(fscanf(tracefile," %s %llx,%d",buf,&addr,&len)!=EOF)
-    {
-        if(strcmp(buf,"M"))//如果是M，则相当于同时L，S，即2次
-            accessData(addr);
-        accessData(addr);
-    }
-
+    //行读取文件到buf
+	while(fgets(buf, 1000, trace_fp) != NULL)
+	{
+		if(buf[1]=='S' || buf[1]=='L' || buf[1]=='M')
+		{
+			sscanf(buf+3, "%llx,%u", &addr, &len);
+			if(buf[1]=='M')//如果是M，则相当于同时L，S，即2次
+				accessData(addr);
+			accessData(addr);
+		}
+	}
     fclose(trace_fp);
 }
 
