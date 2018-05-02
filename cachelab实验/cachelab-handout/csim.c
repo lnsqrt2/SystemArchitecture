@@ -27,7 +27,7 @@
 #include <errno.h>
 #include "cachelab.h"
 
-//#define DEBUG_ON 
+#define DEBUG_ON 1
 #define ADDRESS_LENGTH 64
 
 /* Type: Memory address */
@@ -41,8 +41,8 @@ typedef struct cache_line {
     unsigned long long int lru;//LRU算法位
 } cache_line_t;
 
-typedef cache_line_t* cache_set_t;
-typedef cache_set_t* cache_t;
+typedef cache_line_t* cache_set_t;//cache_set_t包含多行cache_line_t
+typedef cache_set_t* cache_t;//cache_t 包含多组cache_set_t
 
 /* Globals set by command line args */
 int verbosity = 0; /* print trace if set */
@@ -58,7 +58,7 @@ int B; /* block size (bytes) 块数*/
 /* Counters used to record cache statistics */
 int miss_count = 0;
 int hit_count = 0;
-int eviction_count = 0;//被LRU丢掉的cache
+int eviction_count = 0;//被LRU丢掉cache的次数
 unsigned long long int lru_counter = 1;
 
 /* The cache we are simulating */
@@ -69,14 +69,19 @@ mem_addr_t set_index_mask;
  * initCache - Allocate memory, write 0's for valid and tag and LRU
  * also computes the set_index_mask
  */
-void initCache()//Done
+void initCache()
 {
+	if(S<0)
+	{
+		printf("输入无效！\n");
+		exit(0);
+	}
     int i,j;
     cache = (cache_set_t*) malloc(sizeof(cache_set_t) * S);
     for (i=0; i<S; i++){
         cache[i]=(cache_line_t*) malloc(sizeof(cache_line_t) * E);
         for (j=0; j<E; j++){
-            cache[i][j].valid = 0;
+            cache[i][j].valid = 'n';
             cache[i][j].tag = 0;
             cache[i][j].lru = 0;
         }
@@ -89,7 +94,7 @@ void initCache()//Done
 /* 
  * freeCache - free allocated memory
  */
-void freeCache()//Done
+void freeCache()
 {
     int i,j;
     for (i=0; i<S; i++){
@@ -108,12 +113,15 @@ void freeCache()//Done
 void accessData(mem_addr_t addr)
 {
     int i,j;
-    unsigned long long int eviction_lru = ULONG_MAX;
-    unsigned int eviction_line = 0;
+    unsigned long long int eviction_lru = ULONG_MAX;//被替换的cache的lru
+    unsigned int eviction_line = 0;//被替换的cache行号
     mem_addr_t set_index = (addr >> b) & set_index_mask;//组号
     mem_addr_t tag = addr >> (s+b);//标识号
 
     cache_set_t cache_set = cache[set_index];//选定这一组cache
+
+    //lru_counter代表最近一次访问的lru值，越大越新
+    lru_counter++;
 
     //判断是否命中
     int isHit = 0;
@@ -121,51 +129,55 @@ void accessData(mem_addr_t addr)
     for(i=0;i<E;i++)//遍历组内所有cache
     {
         //命中cache
-        if(cache_set[i].tag==tag&&cache_set[i].valid==1)
+        if(cache_set[i].tag==tag&&cache_set[i].valid=='y')
         {
             isHit = 1;
             hit_count++;
-            cache_set[i].lru = 0;
+            cache_set[i].lru = lru_counter;//若命中，则把这块cache的lru赋值为lru_counter
             break;
         }
     }
 
     if(isHit != 1) //未命中cache
     {
-        //判断这组cache是否满了
-        for (i=0;i<E;i++)
+    	miss_count++;
+        for (i=0;i<E;i++)//判断这组cache是否满了
         {
-            if(cache_set[i].valid == 0)//如果存在一个空余
+            if(cache_set[i].valid != 'y')//如果存在一个空余
                 isFull = 0;//则不满
         }
 
         if(isFull == 0)//如果不满，则直接载入，无需替换
         {
-            cache_set[i].tag = tag;
-            cache_set[i].valid=1;
-            cache_set[i].lru = 0;//LRU计数清0
+        	for (i=0;i<E;i++)
+	        {
+	            if(cache_set[i].valid != 'y')//找到空余的位置
+	            {
+	            	cache_set[i].tag = tag;
+            		cache_set[i].valid='y';
+            		cache_set[i].lru = lru_counter;
+            		break;
+	            }
+	        }
         }
+
         else//如果满了则要替换
         {
-
-        }
-        if(isFull == 1)
-        for (i=0;i<E;i++)
-        {
-            if(cache_set[i].valid==0)
-            {
-                miss_count++;
-                
-                break;
-            }
+        	eviction_count++;
+        	for (i=0;i<E;i++)
+        	{
+        		//找到lru最小的cache进行替换
+    			if(cache_set[i].lru<eviction_lru)
+    			{
+    				eviction_lru=cache_set[i].lru;
+                	eviction_line=i;
+    			}
+        	}
+        	cache_set[eviction_line].tag = tag;
+        	cache_set[eviction_line].valid='y';
+        	cache_set[eviction_line].lru = lru_counter;
         }
     }
-    for (j=0;j<E;j++)
-    {
-        if(j!=i)
-            (cache_set[j].lru)++;
-    }
-
 }
 
 
@@ -180,7 +192,7 @@ void replayTrace(char* trace_fn)//Done
     FILE* trace_fp = fopen(trace_fn, "r");
 
     //行读取文件到buf,addr,len
-    while(fscanf(tracefile," %s %llx,%d",buf,&addr,&len)!EOF)
+    while(fscanf(tracefile," %s %llx,%d",buf,&addr,&len)!=EOF)
     {
         if(strcmp(buf,"M"))//如果是M，则相当于同时L，S，即2次
             accessData(addr);
@@ -215,7 +227,6 @@ void printUsage(char* argv[])
 int main(int argc, char* argv[])
 {
     char c;
-
     while( (c=getopt(argc,argv,"s:E:b:t:vh")) != -1){
         switch(c){
         case 's':
