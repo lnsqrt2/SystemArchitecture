@@ -53,7 +53,7 @@ char* trace_file = NULL;
 
 /* Derived from command line args 从命令行参数*/
 int S; /* number of sets 组数*/
-int B; /* block size (bytes) 块数*/
+int B; /* block size (bytes) 块大小*/
 
 /* Counters used to record cache statistics */
 int miss_count = 0;

@@ -22,6 +22,21 @@ int is_transpose(int M, int N, int A[N][M], int B[M][N]);
 char transpose_submit_desc[] = "Transpose submission";
 void transpose_submit(int M, int N, int A[N][M], int B[M][N])
 {
+	//cache的规格是	s=5, 组索引5位, 共有2^5=32组
+	//				E=1, 每组包含1行
+	//				b=5, 块内地址5位, 块大小为2^5=32 Bytes
+	if (M==32 && N==32)
+	{
+		/* code */
+	}
+	if (M==64 && N==64)
+	{
+		/* code */
+	}
+	if (M==61 && N==67)
+	{
+		/* code */
+	}
 }
 
 /* 
