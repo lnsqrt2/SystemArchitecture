@@ -101,7 +101,34 @@ void transpose_submit(int M, int N, int A[N][M], int B[M][N])
                 B[j+7][i] = tmp8;
             }
         }
+        if(N != (N/8*8)||M!= (M/8*8))
+        {
 
+            for (i = 0; i < N; i++)
+            {
+                for (j = (M/8*8); j < M; j++) 
+                {
+                    tmp1 = A[i][j];
+                    B[j][i] = tmp1;
+                }
+            }
+            for (i = (N/8*8); i < N; i++)
+            {
+                for (j = 0; j < M; j++) 
+                {
+                    tmp1 = A[i][j];
+                    B[j][i] = tmp1;
+                }
+            }
+            for (i = (N/8*8); i < N; i++)
+            {
+                for (j = (M/8*8); j < M; j++) 
+                {
+                    tmp1 = A[i][j];
+                    B[j][i] = tmp1;
+                }
+            }
+        }
     }
 }
 
